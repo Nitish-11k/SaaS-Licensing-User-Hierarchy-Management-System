@@ -42,5 +42,16 @@ namespace SaasLicenseSystem.Api.Controllers
             var result = await _userService.GetHierarchyTreeAsync(userId);
             return Ok(result);
         }
+
+        [HttpPatch("{id}/role")]
+        [Authorize(Roles = "SuperAdmin,Admin")]
+        public async Task<IActionResult> UpdateRole(Guid id, [FromBody] string newRoleName)
+        {
+            var adminId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var tenantId = Guid.Parse(User.FindFirst("TenantId")!.Value);
+            
+            await _userService.UpdateUserRoleAsync(adminId, tenantId, id, newRoleName);
+            return Ok(new { message = "Role updated." });
+        }
     }
 }

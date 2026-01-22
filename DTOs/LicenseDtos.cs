@@ -14,4 +14,6 @@ namespace SaasLicenseSystem.Api.DTOs
     );
 
     public record MachineValidationResponse(bool IsAllowed, string Message);
+    
+    public record TransferLicenseRequest(Guid AssignmentId, Guid NewUserId);
 }

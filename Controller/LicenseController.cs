@@ -62,5 +62,35 @@ namespace SaasLicenseSystem.Api.Controllers
             }
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
         }
+
+        [HttpPost("revoke/{id}")]
+        [Authorize(Roles = "SuperAdmin,Admin")]
+        public async Task<IActionResult> RevokeLicense(Guid id)
+        {
+            try
+            {
+                var adminId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                var tenantId = Guid.Parse(User.FindFirst("TenantId")!.Value);
+                
+                await _licenseService.RevokeLicenseAsync(adminId, tenantId, id);
+                return Ok(new { message = "License revoked successfully." });
+            }
+            catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+        }
+
+        [HttpPost("transfer")]
+        [Authorize(Roles = "SuperAdmin,Admin")]
+        public async Task<IActionResult> TransferLicense([FromBody] TransferLicenseRequest request)
+        {
+            try
+            {
+                var adminId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                var tenantId = Guid.Parse(User.FindFirst("TenantId")!.Value);
+
+                await _licenseService.TransferLicenseAsync(adminId, tenantId, request.AssignmentId, request.NewUserId);
+                return Ok(new { message = "License transferred successfully." });
+            }
+            catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+        }
     }
 }

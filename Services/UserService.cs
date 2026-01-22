@@ -3,16 +3,19 @@ using SaasLicenseSystem.Api.Data;
 using SaasLicenseSystem.Api.DTOs;
 using SaasLicenseSystem.Api.Entities;
 using BCrypt.Net;
+using SaasLicenseSystem.Api.Services;
 
 namespace SaasLicenseSystem.Api.Services
 {
     public class UserService
     {
         private readonly AppDbContext _context;
+        private readonly AuditService _auditService;
 
-        public UserService(AppDbContext context)
+        public UserService(AppDbContext context, AuditService auditService)
         {
             _context = context;
+            _auditService = auditService;
         }
 
         public async Task<UserResponse> CreateUserAsync(Guid creatorId, Guid tenantId, CreateUserRequest request)
@@ -75,6 +78,21 @@ namespace SaasLicenseSystem.Api.Services
             )).ToList();
         }
 
+        public async Task UpdateUserRoleAsync(Guid adminId, Guid tenantId, Guid userId, string newRoleName)
+        {
+            var targetUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId && u.TenantId == tenantId);
+            if (targetUser == null) throw new Exception("User not found.");
+
+            var role = await _context.Roles.FirstOrDefaultAsync(r => r.Name == newRoleName && r.TenantId == tenantId);
+            if (role == null) throw new Exception("Role not found.");
+
+            targetUser.RoleId = role.Id;
+            await _context.SaveChangesAsync();
+
+            // Audit Log
+            await _auditService.LogActionAsync(tenantId, adminId, "Update Role", $"User {targetUser.Email} role changed to {newRoleName}");
+        }
+
         private bool CanCreate(string creatorRole, string targetRole)
         {
             if (creatorRole == "SuperAdmin") return targetRole == "Admin";
@@ -82,5 +100,6 @@ namespace SaasLicenseSystem.Api.Services
             if (creatorRole == "Manager") return targetRole == "User";
             return false;
         }
+
     }
 }

@@ -8,10 +8,12 @@ namespace SaasLicenseSystem.Api.Services
     public class LicenseService
     {
         private readonly AppDbContext _context;
+        private readonly AuditService _auditService;
 
-        public LicenseService(AppDbContext context)
+        public LicenseService(AppDbContext context, AuditService auditService)
         {
             _context = context;
+            _auditService = auditService;
         }
 
         public async Task<License> CreateLicenseAsync(Guid tenantId, CreateLicenseRequest request)
@@ -31,8 +33,7 @@ namespace SaasLicenseSystem.Api.Services
             await _context.SaveChangesAsync();
             return license;
         }
-
-        public async Task AssignLicenseAsync(Guid adminId, Guid tenantId, AssignLicenseRequest request)
+            public async Task AssignLicenseAsync(Guid adminId, Guid tenantId, AssignLicenseRequest request)
         {
             var license = await _context.Licenses
                 .FirstOrDefaultAsync(l => l.Id == request.LicenseId && l.TenantId == tenantId);
@@ -40,10 +41,15 @@ namespace SaasLicenseSystem.Api.Services
             if (license == null) throw new Exception("License not found or access denied.");
             if (license.Status != LicenseStatus.Active) throw new Exception("License is not active.");
 
+            // Check if already assigned (Concurrency/Double booking check)
+            var currentCount = await _context.LicenseAssignments.CountAsync(la => la.LicenseId == license.Id);
+            if (currentCount >= license.MaxSeats) throw new Exception("License seat limit reached.");
+
             var targetUser = await _context.Users
                 .FirstOrDefaultAsync(u => u.Id == request.TargetUserId && u.TenantId == tenantId);
             
             if (targetUser == null) throw new Exception("User not found.");
+
             var assignment = new LicenseAssignment
             {
                 LicenseId = license.Id,
@@ -53,6 +59,43 @@ namespace SaasLicenseSystem.Api.Services
 
             _context.LicenseAssignments.Add(assignment);
             await _context.SaveChangesAsync();
+
+            // 2. Log Action
+            await _auditService.LogActionAsync(tenantId, adminId, "Assign License", $"License {license.LicenseKey} assigned to User {targetUser.Email}");
+        }
+
+        public async Task RevokeLicenseAsync(Guid adminId, Guid tenantId, Guid licenseId)
+        {
+            var license = await _context.Licenses.FirstOrDefaultAsync(l => l.Id == licenseId && l.TenantId == tenantId);
+            if (license == null) throw new Exception("License not found.");
+
+            license.Status = LicenseStatus.Revoked;
+            _context.Licenses.Update(license);
+            await _context.SaveChangesAsync();
+
+            // Log Action
+            await _auditService.LogActionAsync(tenantId, adminId, "Revoke License", $"License {license.LicenseKey} revoked.");
+        }
+
+        public async Task TransferLicenseAsync(Guid adminId, Guid tenantId, Guid assignmentId, Guid newUserId)
+        {
+            var assignment = await _context.LicenseAssignments
+                .Include(la => la.License)
+                .FirstOrDefaultAsync(la => la.Id == assignmentId && la.TenantId == tenantId);
+
+            if (assignment == null) throw new Exception("Assignment not found.");
+
+            var newUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == newUserId && u.TenantId == tenantId);
+            if (newUser == null) throw new Exception("Target user not found.");
+
+            var oldUserId = assignment.UserId;
+            assignment.UserId = newUserId; // Re-assign
+            assignment.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            // Log Action
+            await _auditService.LogActionAsync(tenantId, adminId, "Transfer License", $"License {assignment.License.LicenseKey} transferred from {oldUserId} to {newUser.Email}");
         }
 
         public async Task<MachineValidationResponse> ValidateMachineAsync(Guid userId, MachineHeartbeatRequest request)
