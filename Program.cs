@@ -9,12 +9,10 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Database Configuration
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
-// 2. Authentication Configuration
 var key = Encoding.ASCII.GetBytes(builder.Configuration["Jwt:Key"]!);
 
 builder.Services.AddAuthentication(x =>
@@ -35,12 +33,12 @@ builder.Services.AddAuthentication(x =>
     };
 });
 
-// 3. Register Services
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UserService>();    
 builder.Services.AddScoped<LicenseService>(); 
-builder.Services.AddScoped<AuditService>();   
+builder.Services.AddScoped<AuditService>();  
+builder.Services.AddScoped<MasterDataService>(); 
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

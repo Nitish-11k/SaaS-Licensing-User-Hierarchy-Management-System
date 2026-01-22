@@ -73,7 +73,6 @@ namespace SaasLicenseSystem.Api.Services
             _context.Licenses.Update(license);
             await _context.SaveChangesAsync();
 
-            // Log Action
             await _auditService.LogActionAsync(tenantId, adminId, "Revoke License", $"License {license.LicenseKey} revoked.");
         }
 
@@ -89,18 +88,16 @@ namespace SaasLicenseSystem.Api.Services
             if (newUser == null) throw new Exception("Target user not found.");
 
             var oldUserId = assignment.UserId;
-            assignment.UserId = newUserId; // Re-assign
+            assignment.UserId = newUserId; 
             assignment.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
 
-            // Log Action
             await _auditService.LogActionAsync(tenantId, adminId, "Transfer License", $"License {assignment.License.LicenseKey} transferred from {oldUserId} to {newUser.Email}");
         }
 
         public async Task<MachineValidationResponse> ValidateMachineAsync(Guid userId, MachineHeartbeatRequest request)
         {
-            // 1. Find User's Active License Assignment
             var assignment = await _context.LicenseAssignments
                 .Include(la => la.License)
                 .Include(la => la.Machines)
@@ -145,6 +142,49 @@ namespace SaasLicenseSystem.Api.Services
             await _context.SaveChangesAsync();
 
             return new MachineValidationResponse(true, "Machine registered and validated.");
+        }
+
+     public async Task<List<MachineDto>> GetMachinesByLicenseIdAsync(Guid tenantId, Guid licenseId)
+    {
+
+        var license = await _context.Licenses.FirstOrDefaultAsync(l => l.Id == licenseId && l.TenantId == tenantId);
+        if (license == null) throw new Exception("License not found.");
+       var machines = await _context.Machines
+        .Include(m => m.LicenseAssignment)
+        .ThenInclude(la => la.User)
+        .Where(m => m.LicenseAssignment.LicenseId == licenseId)
+        .Select(m => new MachineDto(
+            m.Id,
+            m.HardwareId,
+            m.MachineName,
+            m.OperatingSystem,
+            m.IpAddress,
+            m.LastActive,
+            m.LicenseAssignment.User.Email
+        ))
+            .ToListAsync();
+
+        return machines;
+    }
+
+    public async Task<List<MachineDto>> GetMachinesByUserIdAsync(Guid tenantId, Guid userId)
+    {
+       var machines = await _context.Machines
+        .Include(m => m.LicenseAssignment)
+        .ThenInclude(la => la.User)
+        .Where(m => m.LicenseAssignment.UserId == userId && m.TenantId == tenantId)
+        .Select(m => new MachineDto(
+            m.Id,
+            m.HardwareId,
+            m.MachineName,
+            m.OperatingSystem,
+            m.IpAddress,
+            m.LastActive,
+            m.LicenseAssignment.User.Email
+        ))
+            .ToListAsync();
+
+           return machines;
         }
     }
 }

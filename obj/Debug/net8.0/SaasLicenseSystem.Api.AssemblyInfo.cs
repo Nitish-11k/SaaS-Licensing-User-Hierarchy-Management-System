@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SaasLicenseSystem.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6a5debb29b46e6156a1c27b8c31b5c60dd0526bb")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+69753e5b5b410f4da8723bc67f4be1de44a41953")]
 [assembly: System.Reflection.AssemblyProductAttribute("SaasLicenseSystem.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SaasLicenseSystem.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
