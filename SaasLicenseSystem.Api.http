@@ -1,0 +1,6 @@
+@SaasLicenseSystem.Api_HostAddress = http://localhost:5059
+
+GET {{SaasLicenseSystem.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
