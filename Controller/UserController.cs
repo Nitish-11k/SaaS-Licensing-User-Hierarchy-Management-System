@@ -34,6 +34,35 @@ namespace SaasLicenseSystem.Api.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
+        [HttpPost("invite")]
+        [Authorize(Roles = "SuperAdmin,Admin")]
+        public async Task<IActionResult> InviteUser([FromBody] InviteUserRequest request)
+        {
+            try
+            {
+                var adminId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                var tenantId = Guid.Parse(User.FindFirst("TenantId")!.Value);
+        
+                var inviteLink = await _userService.InviteUserAsync(adminId, tenantId, request.Email, request.RoleName);
+        
+                return Ok(new { message = "Invitation sent.", inviteToken = inviteLink });
+            }
+            catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+        }
+
+        [HttpPatch("{id}/department")]
+        [Authorize(Roles = "SuperAdmin,Admin")]
+        public async Task<IActionResult> UpdateDepartment(Guid id, [FromBody] Guid departmentId)
+        {
+            try
+            {
+                var adminId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                var tenantId = Guid.Parse(User.FindFirst("TenantId")!.Value);
+                await _userService.UpdateDepartmentAsync(adminId, tenantId, id, departmentId);
+                return Ok(new { message = "Department updated." });
+            }
+            catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+        }
 
         [HttpGet("hierarchy")]
         public async Task<IActionResult> GetMyHierarchy()

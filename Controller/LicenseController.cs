@@ -92,5 +92,25 @@ namespace SaasLicenseSystem.Api.Controllers
             }
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
         }
+       
+       [HttpGet("usage")]
+       [Authorize(Roles = "SuperAdmin,Admin")]
+       public async Task<IActionResult> GetUsage()
+       {
+            var tenantId = Guid.Parse(User.FindFirst("TenantId")!.Value);
+            var stats = await _licenseService.GetLicenseUsageAsync(tenantId);
+            return Ok(stats);
+       }
+
+       [HttpPost("upgrade")]
+       [Authorize(Roles = "SuperAdmin")]
+       public async Task<IActionResult> UpgradeLicense([FromBody] UpgradeLicenseRequest request)
+       {
+            var adminId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var tenantId = Guid.Parse(User.FindFirst("TenantId")!.Value);
+
+            await _licenseService.UpgradeLicenseAsync(adminId, tenantId, request.LicenseId, request.AddedSeats, request.AddedDays);
+             return Ok(new { message = "License upgraded successfully." });
+        }
     }
 }

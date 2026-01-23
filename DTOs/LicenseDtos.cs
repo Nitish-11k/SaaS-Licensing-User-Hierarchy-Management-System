@@ -25,5 +25,8 @@ namespace SaasLicenseSystem.Api.DTOs
     string? IpAddress, 
     DateTime LastActive,
     string AssignedUserEmail
-);
+    );
+
+    public record LicenseUsageStats(int TotalLicenses, int ActiveLicenses, int TotalSeats, int AssignedSeats);
+    public record UpgradeLicenseRequest(Guid LicenseId, int AddedSeats, int AddedDays);
 }

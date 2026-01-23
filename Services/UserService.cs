@@ -58,6 +58,46 @@ namespace SaasLicenseSystem.Api.Services
             return new UserResponse(newUser.Id, newUser.FullName, newUser.Email, request.RoleName, null, newUser.ParentId, newUser.IsActive);
         }
 
+        public async Task<string> InviteUserAsync(Guid inviterId, Guid tenantId, string email, string roleName)
+        {
+            var role = await _context.Roles.FirstOrDefaultAsync(r => r.Name == roleName);
+            if (role == null) throw new Exception("Role not found.");
+
+            var user = new User
+        {
+            Email = email,
+            FullName = "Pending Invitation",
+            PasswordHash = "", 
+            RoleId = role.Id,
+            TenantId = tenantId,
+            ParentId = inviterId,
+            IsActive = false 
+        };
+
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+
+    
+            await _auditService.LogActionAsync(tenantId, inviterId, "Invite User", $"Invited {email} as {roleName}");
+
+    
+            return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{user.Id}:{Guid.NewGuid()}")); 
+        }
+
+        public async Task UpdateDepartmentAsync(Guid adminId, Guid tenantId, Guid targetUserId, Guid departmentId)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == targetUserId);
+            if (user == null) throw new Exception("User not found.");
+
+            var department = await _context.Departments.FirstOrDefaultAsync(d => d.Id == departmentId);
+            if (department == null) throw new Exception("Department not found.");
+
+            user.DepartmentId = departmentId;
+            await _context.SaveChangesAsync();
+ 
+            await _auditService.LogActionAsync(tenantId, adminId, "Update Department", $"Moved {user.Email} to {department.Name}");
+        }
+
         public async Task<List<UserResponse>> GetHierarchyTreeAsync(Guid userId)
         {
                   

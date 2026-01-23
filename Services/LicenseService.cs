@@ -20,6 +20,7 @@ namespace SaasLicenseSystem.Api.Services
         {
             var license = new License
             {
+                Name = request.Name,
                 LicenseKey = Guid.NewGuid().ToString("N").ToUpper(), 
                 Type = request.Type,
                 MaxSeats = request.MaxSeats,
@@ -186,5 +187,38 @@ namespace SaasLicenseSystem.Api.Services
 
            return machines;
         }
+    public async Task<LicenseUsageStats> GetLicenseUsageAsync(Guid tenantId)
+    {
+        var totalLicenses = await _context.Licenses.CountAsync();
+        var activeLicenses = await _context.Licenses.CountAsync(l => l.Status == LicenseStatus.Active);
+    
+        var licenseData = await _context.Licenses
+            .Include(l => l.Assignments)
+            .Select(l => new 
+        {
+            l.Name,
+            l.MaxSeats,
+            UsedSeats = l.Assignments.Count
+        }).ToListAsync();
+
+        return new LicenseUsageStats(
+            totalLicenses, 
+            activeLicenses, 
+            licenseData.Sum(x => x.MaxSeats), 
+            licenseData.Sum(x => x.UsedSeats)
+        );
+    }
+
+    public async Task UpgradeLicenseAsync(Guid adminId, Guid tenantId, Guid licenseId, int addedSeats, int addedDays)
+    {
+        var license = await _context.Licenses.FindAsync(licenseId);
+        if (license == null) throw new Exception("License not found.");
+
+        license.MaxSeats += addedSeats;
+        license.ExpiryDate = license.ExpiryDate.AddDays(addedDays);
+    
+        await _context.SaveChangesAsync();
+        await _auditService.LogActionAsync(tenantId, adminId, "Upgrade License", $"Added {addedSeats} seats and {addedDays} days.");
+    }
     }
 }

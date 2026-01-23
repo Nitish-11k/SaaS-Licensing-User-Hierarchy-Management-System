@@ -1,13 +1,18 @@
 using Microsoft.EntityFrameworkCore;
 using SaasLicenseSystem.Api.Entities;
+using System.Security.Claims;
 
 namespace SaasLicenseSystem.Api.Data
 {
     public class AppDbContext : DbContext
     {
-        private readonly Guid _currentTenantId; 
-        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+        private readonly IHttpContextAccessor _httpContextAccessor;
+
+        // Constructor now accepts HttpContextAccessor for getting the current Tenant
+        public AppDbContext(DbContextOptions<AppDbContext> options, IHttpContextAccessor httpContextAccessor) 
+            : base(options)
         {
+            _httpContextAccessor = httpContextAccessor;
         }
 
         public DbSet<Tenant> Tenants { get; set; }
@@ -21,15 +26,23 @@ namespace SaasLicenseSystem.Api.Data
         public DbSet<Machine> Machines { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
 
+        // Helper to get current TenantId from the JWT Token
+        private Guid GetCurrentTenantId()
+        {
+            var tenantIdClaim = _httpContextAccessor.HttpContext?.User?.FindFirst("TenantId")?.Value;
+            return Guid.TryParse(tenantIdClaim, out var tenantId) ? tenantId : Guid.Empty;
+        }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
+            // 1. YOUR EXISTING RELATIONSHIPS (Preserved)
             modelBuilder.Entity<User>()
                 .HasOne(u => u.Parent)
                 .WithMany(u => u.SubUsers)
                 .HasForeignKey(u => u.ParentId)
-                .OnDelete(DeleteBehavior.Restrict); 
+                .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<UserGroup>()
                 .HasKey(ug => new { ug.UserId, ug.GroupId });
@@ -49,6 +62,33 @@ namespace SaasLicenseSystem.Api.Data
                 .WithMany(la => la.Machines)
                 .HasForeignKey(m => m.LicenseAssignmentId);
 
+            // 2. NEW GLOBAL QUERY FILTERS (For Multi-Tenancy Security)
+            // This prevents a SuperAdmin from seeing data from other Organizations
+            modelBuilder.Entity<User>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<Department>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<Group>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<Role>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<License>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<LicenseAssignment>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<Machine>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+            modelBuilder.Entity<AuditLog>().HasQueryFilter(e => e.TenantId == GetCurrentTenantId());
+        }
+
+        // Automatically set TenantId when saving new records
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            var tenantId = GetCurrentTenantId();
+            if (tenantId != Guid.Empty)
+            {
+                foreach (var entry in ChangeTracker.Entries<BaseEntity>())
+                {
+                    if (entry.State == EntityState.Added)
+                    {
+                        entry.Entity.TenantId = tenantId;
+                    }
+                }
+            }
+            return base.SaveChangesAsync(cancellationToken);
         }
     }
 }

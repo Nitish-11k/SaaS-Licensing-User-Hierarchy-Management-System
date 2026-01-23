@@ -5,6 +5,7 @@ namespace SaasLicenseSystem.Api.Entities
 
     public class License : BaseEntity
     {
+        public required string Name {get; set;}
         public required string LicenseKey { get; set; }
         public LicenseType Type { get; set; }
         public LicenseStatus Status { get; set; }

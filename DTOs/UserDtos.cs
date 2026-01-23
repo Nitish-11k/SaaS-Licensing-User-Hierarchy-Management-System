@@ -9,6 +9,8 @@ namespace SaasLicenseSystem.Api.DTOs
         List<Guid>? GroupIds
     );
 
+    public record InviteUserRequest(string Email, string RoleName);
+
     public record UserResponse(
         Guid Id, 
         string FullName, 
